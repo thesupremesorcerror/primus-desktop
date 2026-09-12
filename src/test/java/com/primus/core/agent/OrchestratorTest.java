@@ -35,7 +35,7 @@ class OrchestratorTest {
     @BeforeEach
     void setUp() {
         orchestrator = new Orchestrator(logAgent, metricsAgent, ragAgent, diagnosisAgent,
-                remediationAgent, diagnosticTools, policyEngine, candidateService);
+                remediationAgent, diagnosticTools, policyEngine, candidateService, new AgentStatusTracker());
 
         incident = new Incident("auth-api is not responding", "HIGH", "OPEN", "auth-api");
 
