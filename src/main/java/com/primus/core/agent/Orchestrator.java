@@ -7,9 +7,13 @@ import org.springframework.stereotype.Component;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.Supplier;
 
 @Component
 public class Orchestrator {
+
+    private static final List<String> AGENT_NAMES =
+            List.of("LogAgent", "MetricsAgent", "RagAgent", "DiagnosisAgent", "RemediationAgent");
 
     private final LogAgent logAgent;
     private final MetricsAgent metricsAgent;
@@ -19,11 +23,12 @@ public class Orchestrator {
     private final DiagnosticTools diagnosticTools;
     private final PolicyEngine policyEngine;
     private final RemediationCandidateService candidateService;
+    private final AgentStatusTracker statusTracker;
 
     public Orchestrator(LogAgent logAgent, MetricsAgent metricsAgent, RagAgent ragAgent,
                         DiagnosisAgent diagnosisAgent, RemediationAgent remediationAgent,
                         DiagnosticTools diagnosticTools, PolicyEngine policyEngine,
-                        RemediationCandidateService candidateService) {
+                        RemediationCandidateService candidateService, AgentStatusTracker statusTracker) {
         this.logAgent = logAgent;
         this.metricsAgent = metricsAgent;
         this.ragAgent = ragAgent;
@@ -32,6 +37,7 @@ public class Orchestrator {
         this.diagnosticTools = diagnosticTools;
         this.policyEngine = policyEngine;
         this.candidateService = candidateService;
+        this.statusTracker = statusTracker;
     }
 
     public static class OrchestratorResult {
@@ -45,26 +51,29 @@ public class Orchestrator {
     }
 
     public OrchestratorResult run(Incident incident) {
+        UUID incidentId = incident.getId();
+        statusTracker.reset(incidentId, AGENT_NAMES);
+
         OrchestratorResult result = new OrchestratorResult();
-        result.incidentId = incident.getId();
+        result.incidentId = incidentId;
 
         // Stage 1: parallel-ish investigation (sequential calls, independent findings)
-        AgentFinding logFinding = logAgent.investigate(incident, null);
-        AgentFinding metricsFinding = metricsAgent.investigate(incident, null);
+        AgentFinding logFinding = runStage(incidentId, "LogAgent", () -> logAgent.investigate(incident, null));
+        AgentFinding metricsFinding = runStage(incidentId, "MetricsAgent", () -> metricsAgent.investigate(incident, null));
 
         String earlyContext = "Log findings: %s | Metrics findings: %s"
                 .formatted(logFinding.summary(), metricsFinding.summary());
-        AgentFinding ragFinding = ragAgent.investigate(incident, earlyContext);
+        AgentFinding ragFinding = runStage(incidentId, "RagAgent", () -> ragAgent.investigate(incident, earlyContext));
 
         List<AgentFinding> findings = List.of(logFinding, metricsFinding, ragFinding);
         result.findings = findings;
 
         // Stage 2: synthesis
-        AgentFinding diagnosis = diagnosisAgent.synthesize(incident, findings);
+        AgentFinding diagnosis = runStage(incidentId, "DiagnosisAgent", () -> diagnosisAgent.synthesize(incident, findings));
         result.diagnosis = diagnosis.summary();
 
         // Stage 3: remediation proposal + policy gating (mirrors AgentLoop's Stage 5/7 logic)
-        RemediationAgent.Proposal proposal = remediationAgent.propose(incident, diagnosis);
+        RemediationAgent.Proposal proposal = runStage(incidentId, "RemediationAgent", () -> remediationAgent.propose(incident, diagnosis));
 
         if (proposal.hasProposal()) {
             String toolName = proposal.toolName();
@@ -84,6 +93,25 @@ public class Orchestrator {
         }
 
         return result;
+    }
+
+    /**
+     * Wraps one agent's stage with real status tracking: RUNNING before the
+     * call, COMPLETED after it succeeds, FAILED (then rethrown) if it
+     * throws. This is what makes the UI's live status panel real rather
+     * than simulated -- each transition happens exactly when the
+     * corresponding agent call actually starts/finishes.
+     */
+    private <T> T runStage(UUID incidentId, String agentName, Supplier<T> action) {
+        statusTracker.setStatus(incidentId, agentName, AgentStatusTracker.Status.RUNNING);
+        try {
+            T value = action.get();
+            statusTracker.setStatus(incidentId, agentName, AgentStatusTracker.Status.COMPLETED);
+            return value;
+        } catch (RuntimeException e) {
+            statusTracker.setStatus(incidentId, agentName, AgentStatusTracker.Status.FAILED);
+            throw e;
+        }
     }
 
     private Object executeRemediation(String toolName, String serviceName) {

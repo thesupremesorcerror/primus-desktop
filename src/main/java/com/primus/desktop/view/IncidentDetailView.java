@@ -1,10 +1,15 @@
 package com.primus.desktop.view;
 
 import com.primus.core.agent.AgentFinding;
+import com.primus.core.agent.AgentStatusTracker;
 import com.primus.core.incident.Incident;
 import com.primus.core.incident.IncidentService;
 import com.primus.core.remediation.RemediationCandidate;
 import com.primus.desktop.session.DesktopSession;
+import javafx.animation.KeyFrame;
+import javafx.animation.Timeline;
+import javafx.application.Platform;
+import javafx.concurrent.Task;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.Button;
@@ -12,13 +17,15 @@ import javafx.scene.control.Label;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
-import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
+import javafx.util.Duration;
 import org.springframework.security.access.AccessDeniedException;
 
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -36,25 +43,35 @@ import java.util.UUID;
  *   synthesized diagnosis itself has no separate confidence score stored.
  * - Remediation candidates are only ever created for HIGH-risk actions that
  *   needed approval -- an empty list here is normal, not a bug.
+ * - Agent Activity panel shows REAL live status from AgentStatusTracker,
+ *   updated by Orchestrator itself as each agent actually starts/finishes --
+ *   not a simulated animation. Only "Investigate" goes through the
+ *   Orchestrator/tracker; "Quick Diagnose" does not, so it has no live
+ *   status of its own.
  */
 public class IncidentDetailView {
 
     private static final DateTimeFormatter TIMESTAMP_FORMAT =
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm").withZone(ZoneId.systemDefault());
     private static final List<String> PIPELINE_STAGES = List.of("OPEN", "DIAGNOSING", "AWAITING_APPROVAL", "RESOLVED");
+    private static final List<String> AGENT_NAMES =
+            List.of("LogAgent", "MetricsAgent", "RagAgent", "DiagnosisAgent", "RemediationAgent");
 
     private final IncidentService incidentService;
     private final DesktopSession session;
+    private final AgentStatusTracker statusTracker;
     private final UUID incidentId;
     private final Runnable onBack;
 
     private VBox contentBox;
     private Label statusMessage;
+    private final Map<String, Label> agentStatusLabels = new LinkedHashMap<>();
 
     public IncidentDetailView(IncidentService incidentService, DesktopSession session,
-                              UUID incidentId, Runnable onBack) {
+                              AgentStatusTracker statusTracker, UUID incidentId, Runnable onBack) {
         this.incidentService = incidentService;
         this.session = session;
+        this.statusTracker = statusTracker;
         this.incidentId = incidentId;
         this.onBack = onBack;
     }
@@ -94,6 +111,7 @@ public class IncidentDetailView {
         contentBox.getChildren().clear();
         contentBox.getChildren().add(buildSummaryCard(incident));
         contentBox.getChildren().add(buildPipelineCard(incident));
+        contentBox.getChildren().add(buildAgentActivityCard());
         contentBox.getChildren().add(buildActionsCard(incident));
         contentBox.getChildren().add(buildDiagnosisCard(incident));
         contentBox.getChildren().add(buildFindingsCard(findings));
@@ -161,7 +179,7 @@ public class IncidentDetailView {
             reopenedNote.setStyle("-fx-text-fill: #ef4444; -fx-font-size: 11px;");
             card.getChildren().add(reopenedNote);
         }
-        Label caption = new Label("\"Diagnosing\" covers evidence collection, agent findings, and diagnosis synthesis in one step -- see below for the real breakdown.");
+        Label caption = new Label("\"Diagnosing\" covers evidence collection, agent findings, and diagnosis synthesis in one step -- see the Agent Activity panel below for the real live breakdown.");
         caption.getStyleClass().add("muted-text");
         caption.setStyle("-fx-font-size: 10px;");
         caption.setWrapText(true);
@@ -180,25 +198,75 @@ public class IncidentDetailView {
         };
     }
 
+    // ---------- Agent Activity (live status) ----------
+
+    private VBox buildAgentActivityCard() {
+        Label heading = new Label("Agent Activity");
+        heading.getStyleClass().add("card-heading");
+
+        Label caption = new Label("Real live status from each agent as \"Investigate\" runs -- not simulated. Only Investigate updates this; Quick Diagnose bypasses the agent pipeline entirely.");
+        caption.getStyleClass().add("muted-text");
+        caption.setStyle("-fx-font-size: 10px;");
+        caption.setWrapText(true);
+
+        agentStatusLabels.clear();
+        HBox agentsRow = new HBox(10);
+        for (String agentName : AGENT_NAMES) {
+            Label label = new Label();
+            label.getStyleClass().add("status-badge");
+            agentStatusLabels.put(agentName, label);
+            agentsRow.getChildren().add(label);
+        }
+
+        VBox card = new VBox(10, heading, caption, agentsRow);
+        card.getStyleClass().add("content-card");
+
+        updateAgentStatusLabels();
+        return card;
+    }
+
+    /** Reads the real tracker state and repaints the 5 agent badges -- called once immediately and then every 400ms while an investigation runs. */
+    private void updateAgentStatusLabels() {
+        Map<String, AgentStatusTracker.Status> statuses = statusTracker.getStatuses(incidentId);
+        for (Map.Entry<String, Label> entry : agentStatusLabels.entrySet()) {
+            AgentStatusTracker.Status status = statuses.getOrDefault(entry.getKey(), AgentStatusTracker.Status.WAITING);
+            Label label = entry.getValue();
+            label.setText(shortAgentName(entry.getKey()) + ": " + status.name());
+            label.getStyleClass().removeAll("status-open", "status-awaiting_approval", "status-resolved", "status-reopened", "muted-text");
+            switch (status) {
+                case WAITING -> label.getStyleClass().add("muted-text");
+                case RUNNING -> label.getStyleClass().add("status-awaiting_approval");
+                case COMPLETED -> label.getStyleClass().add("status-resolved");
+                case FAILED -> label.getStyleClass().add("status-reopened");
+            }
+        }
+    }
+
+    private String shortAgentName(String agentName) {
+        return agentName.replace("Agent", "");
+    }
+
     // ---------- Actions ----------
 
     private VBox buildActionsCard(Incident incident) {
         Button investigateButton = new Button("Investigate (Multi-Agent)");
         investigateButton.getStyleClass().add("button-primary");
-        investigateButton.setOnAction(e -> {
-            incidentService.investigateIncident(incidentId);
-            statusMessage.setText("Investigation complete.");
-            refresh();
-        });
+        investigateButton.setOnAction(e -> runInvestigate(investigateButton));
 
         Button diagnoseButton = new Button("Quick Diagnose (LLM + RAG only)");
         diagnoseButton.setOnAction(e -> {
-            incidentService.diagnoseIncident(incidentId);
-            statusMessage.setText("Quick diagnosis complete.");
+            try {
+                incidentService.diagnoseIncident(incidentId);
+                statusMessage.setText("Quick diagnosis complete.");
+                statusMessage.setStyle("-fx-text-fill: #22c55e;");
+            } catch (Exception ex) {
+                statusMessage.setText("Diagnosis failed: " + rootMessage(ex));
+                statusMessage.setStyle("-fx-text-fill: #ef4444;");
+            }
             refresh();
         });
 
-        Label caption = new Label("Investigate runs the full multi-agent pipeline (Log/Metrics/Rag agents + diagnosis + remediation proposal). Quick Diagnose only asks the LLM for a root-cause guess using RAG context, with no agent findings or remediation.");
+        Label caption = new Label("Investigate runs the full multi-agent pipeline (Log/Metrics/Rag agents + diagnosis + remediation proposal), with live status above. Quick Diagnose only asks the LLM for a root-cause guess using RAG context, with no agent findings or remediation.");
         caption.getStyleClass().add("muted-text");
         caption.setStyle("-fx-font-size: 10px;");
         caption.setWrapText(true);
@@ -207,6 +275,42 @@ public class IncidentDetailView {
         VBox card = new VBox(8, buttons, caption);
         card.getStyleClass().add("content-card");
         return card;
+    }
+
+    private void runInvestigate(Button investigateButton) {
+        investigateButton.setDisable(true);
+        statusMessage.setText("Investigating...");
+        statusMessage.setStyle("-fx-text-fill: #f59e0b;");
+
+        Task<Void> task = new Task<>() {
+            @Override
+            protected Void call() {
+                incidentService.investigateIncident(incidentId);
+                return null;
+            }
+        };
+
+        Timeline poller = new Timeline(new KeyFrame(Duration.millis(400), ev -> updateAgentStatusLabels()));
+        poller.setCycleCount(Timeline.INDEFINITE);
+        poller.play();
+
+        task.setOnSucceeded(ev -> Platform.runLater(() -> {
+            poller.stop();
+            statusMessage.setText("Investigation complete.");
+            statusMessage.setStyle("-fx-text-fill: #22c55e;");
+            refresh();
+        }));
+        task.setOnFailed(ev -> Platform.runLater(() -> {
+            poller.stop();
+            updateAgentStatusLabels();
+            statusMessage.setText("Investigation failed: " + rootMessage(task.getException()));
+            statusMessage.setStyle("-fx-text-fill: #ef4444;");
+            investigateButton.setDisable(false);
+        }));
+
+        Thread thread = new Thread(task, "investigate-" + incidentId);
+        thread.setDaemon(true);
+        thread.start();
     }
 
     // ---------- Diagnosis ----------
@@ -365,5 +469,13 @@ public class IncidentDetailView {
 
     private String fmt(java.time.Instant instant) {
         return instant != null ? TIMESTAMP_FORMAT.format(instant) : "";
+    }
+
+    /** Collapses a possibly huge multi-line exception message (e.g. a raw Gemini API error blob) to one readable line. */
+    private String rootMessage(Throwable ex) {
+        String message = ex != null && ex.getMessage() != null ? ex.getMessage()
+                : (ex != null ? ex.getClass().getSimpleName() : "unknown error");
+        String firstLine = message.split("\\R", 2)[0];
+        return firstLine.length() > 140 ? firstLine.substring(0, 140) + "..." : firstLine;
     }
 }

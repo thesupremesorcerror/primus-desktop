@@ -71,8 +71,9 @@ public class PrimusDesktopApplication extends Application {
     private void showIncidentDetailScreen(java.util.UUID incidentId) {
         IncidentService incidentService = springContext.getBean(IncidentService.class);
         DesktopSession session = springContext.getBean(DesktopSession.class);
+        com.primus.core.agent.AgentStatusTracker statusTracker = springContext.getBean(com.primus.core.agent.AgentStatusTracker.class);
 
-        IncidentDetailView detailView = new IncidentDetailView(incidentService, session, incidentId, this::showDashboardScreen);
+        IncidentDetailView detailView = new IncidentDetailView(incidentService, session, statusTracker, incidentId, this::showDashboardScreen);
         Scene scene = new Scene(detailView.build(), 1100, 680);
         scene.getStylesheets().add(getClass().getResource("/css/primus-dark.css").toExternalForm());
         primaryStage.setScene(scene);
