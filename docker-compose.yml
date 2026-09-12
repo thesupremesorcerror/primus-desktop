@@ -1,0 +1,25 @@
+# Only Postgres runs in Docker. The desktop application itself is a JavaFX
+# GUI process -- it runs directly on the developer's machine (via IntelliJ
+# or `mvn javafx:run` / the packaged jar), not inside a container, since a
+# desktop UI needs a real display. There is no backend/frontend web
+# container here anymore -- that architecture no longer exists.
+services:
+  postgres:
+    image: postgres:17
+    container_name: primus-postgres
+    environment:
+      POSTGRES_DB: primusdb
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    ports:
+      - "5432:5432"
+    volumes:
+      - primus_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  primus_pg_data:

@@ -1,0 +1,22 @@
+spring:
+  application:
+    name: primus-desktop
+
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:primusdb}
+    username: ${DB_USER:postgres}
+    password: ${DB_PASSWORD:nemesis123}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: true
+
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+
+primus:
+  gemini:
+    api-key: ${GEMINI_API_KEY:test-placeholder-key}

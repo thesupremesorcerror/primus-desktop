@@ -1,0 +1,231 @@
+/*
+ * Primus Desktop -- dark AI-operations command-center theme.
+ * Loaded once on the root Scene in PrimusDesktopApplication, applies to
+ * every screen (login, dashboard, and future incident/eval views).
+ */
+
+.root {
+    -fx-base-bg: #0f1117;
+    -fx-panel-bg: #171a23;
+    -fx-card-bg: #1b1f2a;
+    -fx-border-subtle: #2a2f3d;
+    -fx-text-primary: #e6e8ef;
+    -fx-text-muted: #8a8f9e;
+    -fx-accent-blue: #3b82f6;
+    -fx-accent-cyan: #22d3ee;
+    -fx-accent-green: #22c55e;
+    -fx-accent-red: #ef4444;
+    -fx-accent-amber: #f59e0b;
+
+    -fx-background-color: -fx-base-bg;
+    -fx-font-family: "Segoe UI", "Inter", sans-serif;
+    -fx-text-fill: -fx-text-primary;
+}
+
+.root, .label, .button, .text-field, .password-field, .table-view {
+    -fx-text-fill: -fx-text-primary;
+}
+
+/* ---------- Layout regions ---------- */
+
+.app-sidebar {
+    -fx-background-color: -fx-panel-bg;
+    -fx-border-color: transparent -fx-border-subtle transparent transparent;
+    -fx-border-width: 0 1 0 0;
+}
+
+.app-header {
+    -fx-background-color: -fx-panel-bg;
+    -fx-border-color: transparent transparent -fx-border-subtle transparent;
+    -fx-border-width: 0 0 1 0;
+}
+
+.app-title {
+    -fx-font-size: 20px;
+    -fx-font-weight: bold;
+    -fx-text-fill: -fx-text-primary;
+}
+
+.app-subtitle {
+    -fx-font-size: 12px;
+    -fx-text-fill: -fx-text-muted;
+}
+
+/* ---------- Sidebar nav items ---------- */
+
+.nav-item {
+    -fx-background-color: transparent;
+    -fx-text-fill: -fx-text-muted;
+    -fx-font-size: 13px;
+    -fx-alignment: CENTER_LEFT;
+    -fx-padding: 10 16 10 16;
+    -fx-background-radius: 6;
+    -fx-cursor: hand;
+}
+
+.nav-item:hover {
+    -fx-background-color: #232838;
+    -fx-text-fill: -fx-text-primary;
+}
+
+.nav-item-selected {
+    -fx-background-color: #1e2a44;
+    -fx-text-fill: -fx-accent-cyan;
+    -fx-font-weight: bold;
+}
+
+/* ---------- Stat / content cards ---------- */
+
+.stat-card, .content-card {
+    -fx-background-color: -fx-card-bg;
+    -fx-background-radius: 10;
+    -fx-border-color: -fx-border-subtle;
+    -fx-border-radius: 10;
+    -fx-border-width: 1;
+    -fx-padding: 16;
+}
+
+.stat-card-label {
+    -fx-font-size: 11px;
+    -fx-text-fill: -fx-text-muted;
+}
+
+.stat-card-value {
+    -fx-font-size: 26px;
+    -fx-font-weight: bold;
+    -fx-text-fill: -fx-text-primary;
+}
+
+.card-heading {
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+    -fx-text-fill: -fx-text-primary;
+}
+
+/* ---------- Status badges ---------- */
+
+.status-badge {
+    -fx-padding: 3 10 3 10;
+    -fx-background-radius: 12;
+    -fx-font-size: 11px;
+    -fx-font-weight: bold;
+}
+
+.status-open { -fx-background-color: #1e2a44; -fx-text-fill: -fx-accent-blue; }
+.status-diagnosing { -fx-background-color: #3a2f13; -fx-text-fill: -fx-accent-amber; }
+.status-awaiting_approval { -fx-background-color: #3a2f13; -fx-text-fill: -fx-accent-amber; }
+.status-remediating { -fx-background-color: #1e2a44; -fx-text-fill: -fx-accent-cyan; }
+.status-verifying { -fx-background-color: #1e2a44; -fx-text-fill: -fx-accent-cyan; }
+.status-resolved { -fx-background-color: #14301f; -fx-text-fill: -fx-accent-green; }
+.status-reopened { -fx-background-color: #3a1414; -fx-text-fill: -fx-accent-red; }
+
+/* ---------- Buttons ---------- */
+
+.button {
+    -fx-background-color: #232838;
+    -fx-text-fill: -fx-text-primary;
+    -fx-background-radius: 6;
+    -fx-padding: 8 16 8 16;
+    -fx-cursor: hand;
+}
+
+.button:hover {
+    -fx-background-color: #2c3346;
+}
+
+.button-primary {
+    -fx-background-color: -fx-accent-blue;
+    -fx-text-fill: white;
+    -fx-font-weight: bold;
+}
+
+.button-primary:hover {
+    -fx-background-color: #2563eb;
+}
+
+.button-danger {
+    -fx-background-color: transparent;
+    -fx-text-fill: -fx-accent-red;
+    -fx-border-color: -fx-accent-red;
+    -fx-border-radius: 6;
+}
+
+/* ---------- Table ---------- */
+
+.table-view {
+    -fx-background-color: -fx-card-bg;
+    -fx-border-color: -fx-border-subtle;
+}
+
+.table-view .column-header-background {
+    -fx-background-color: #20242f;
+}
+
+.table-view .column-header, .table-view .filler {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent transparent -fx-border-subtle transparent;
+}
+
+.table-view .column-header .label {
+    -fx-text-fill: -fx-text-muted;
+    -fx-font-size: 11px;
+    -fx-font-weight: bold;
+}
+
+.table-row-cell {
+    -fx-background-color: -fx-card-bg;
+    -fx-border-color: transparent transparent #232838 transparent;
+    -fx-text-fill: -fx-text-primary;
+}
+
+.table-row-cell:selected {
+    -fx-background-color: #1e2a44;
+}
+
+.table-view .text {
+    -fx-fill: -fx-text-primary;
+}
+
+/* ---------- Text fields ---------- */
+
+.text-field, .password-field {
+    -fx-background-color: #20242f;
+    -fx-background-radius: 6;
+    -fx-border-color: -fx-border-subtle;
+    -fx-border-radius: 6;
+    -fx-padding: 8;
+}
+
+.muted-text {
+    -fx-text-fill: -fx-text-muted;
+}
+
+/* ---------- Tabs ---------- */
+
+.tab-pane .tab-header-area .tab-header-background {
+    -fx-background-color: -fx-panel-bg;
+}
+
+.tab-pane .tab {
+    -fx-background-color: transparent;
+    -fx-background-radius: 6 6 0 0;
+    -fx-padding: 8 16 8 16;
+}
+
+.tab-pane .tab:selected {
+    -fx-background-color: -fx-card-bg;
+}
+
+.tab-pane .tab .tab-label {
+    -fx-text-fill: -fx-text-muted;
+    -fx-font-size: 12px;
+}
+
+.tab-pane .tab:selected .tab-label {
+    -fx-text-fill: -fx-accent-cyan;
+    -fx-font-weight: bold;
+}
+
+.tab-pane .tab-content-area {
+    -fx-background-color: -fx-base-bg;
+}
